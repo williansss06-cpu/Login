@@ -6,7 +6,6 @@
 <title>Frete Inteligente - Acesso</title>
 
 <style>
-/* 🔥 SEU CSS ORIGINAL (NÃO ALTERADO) */
 * { box-sizing: border-box; }
 body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: #0f172a; color: #fff; }
 .wrapper { min-height: 100vh; display: grid; grid-template-columns: 1.2fr 1fr; }
@@ -28,6 +27,8 @@ button:hover { background: #115e59; }
 .aba { flex: 1; text-align: center; padding: 10px; border-radius: 10px; background: #f1f5f9; color: #64748b; cursor: pointer; font-weight: bold; }
 .aba.ativa { background: #0f766e; color: white; }
 .escondido { display: none; }
+.msg { font-size: 13px; color: red; margin-top: 5px; }
+.sucesso { color: green; }
 </style>
 </head>
 
@@ -71,24 +72,24 @@ button:hover { background: #115e59; }
       </div>
 
       <div id="abaCadastro" class="escondido">
-        <input id="cadastro_cnpj">
-        <input id="cadastro_nome">
-        <input id="cadastro_email">
-        <input id="cadastro_senha">
+        <input id="cadastro_cnpj" placeholder="CNPJ" />
+        <input id="cadastro_nome" placeholder="Nome" />
+        <input id="cadastro_email" placeholder="Email" />
+        <input id="cadastro_senha" placeholder="Senha" type="password"/>
         <button onclick="cadastrarUsuario()">Cadastrar</button>
-        <div id="msg_cadastro"></div>
+        <div id="msg_cadastro" class="msg"></div>
       </div>
 
     </div>
   </section>
 </div>
 
-<!-- 🔥 FIREBASE (UMA VEZ SÓ) -->
+<!-- FIREBASE -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <script>
-// 🔥 CONFIG (GARANTE QUE NÃO DUPLICA)
+// CONFIG
 const firebaseConfig = {
   apiKey: "SUA_API_KEY",
   authDomain: "SEU_AUTH_DOMAIN",
@@ -102,39 +103,91 @@ if (!firebase.apps.length) {
 
 const db = firebase.database();
 
-// 🔁 ABAS
+// ABAS
 function mostrarAba(aba) {
   document.getElementById('abaLogin').classList.toggle('escondido', aba !== 'login');
   document.getElementById('abaCadastro').classList.toggle('escondido', aba !== 'cadastro');
 }
 
-// 🔐 LOGIN
+// LOGIN
 async function login() {
-  const email = login_email.value;
-  const senha = login_senha.value;
+  const email = document.getElementById("login_email").value.trim();
+  const senha = document.getElementById("login_senha").value.trim();
+  const msg = document.getElementById("msg_login");
 
-  const snap = await db.ref("usuarios").once("value");
-  let user = null;
+  msg.innerHTML = "";
 
-  snap.forEach(c => {
-    const u = c.val();
-    if (u.email === email && u.senha === senha) user = u;
-  });
+  if (!email || !senha) {
+    msg.innerHTML = "Preencha e-mail e senha.";
+    return;
+  }
 
-  if (!user) return alert("Login inválido");
+  try {
+    const snap = await db.ref("usuarios").once("value");
+    let user = null;
 
-  localStorage.setItem("usuario_id", "ok");
-  window.location.href = "empresa.html";
+    snap.forEach(c => {
+      const u = c.val();
+      if (u.email === email && u.senha === senha) {
+        user = { ...u, id: c.key };
+      }
+    });
+
+    if (!user) {
+      msg.innerHTML = "E-mail ou senha inválidos.";
+      return;
+    }
+
+    if (user.status === "pendente") {
+      msg.innerHTML = "Aguardando liberação.";
+      return;
+    }
+
+    localStorage.setItem("usuario_id", user.id);
+    localStorage.setItem("perfil", user.perfil || "");
+
+    // 👉 CAMINHO CORRETO PARA GITHUB
+    window.location.href = "../empresa/index.html";
+
+  } catch (error) {
+    console.error(error);
+    msg.innerHTML = "Erro ao acessar.";
+  }
 }
 
-// 👤 CADASTRO
+// CADASTRO
 async function cadastrarUsuario() {
-  await db.ref("usuarios").push({
-    email: cadastro_email.value,
-    senha: cadastro_senha.value
-  });
+  const nome = cadastro_nome.value.trim();
+  const email = cadastro_email.value.trim();
+  const senha = cadastro_senha.value.trim();
+  const cnpj = cadastro_cnpj.value.trim();
+  const msg = document.getElementById("msg_cadastro");
 
-  alert("Cadastrado!");
+  msg.innerHTML = "";
+
+  if (!email || !senha) {
+    msg.innerHTML = "Preencha os campos obrigatórios.";
+    return;
+  }
+
+  try {
+    await db.ref("usuarios").push({
+      nome,
+      email,
+      senha,
+      cnpj,
+      perfil: "admin_empresa",
+      status: "pendente",
+      data_cadastro: Date.now()
+    });
+
+    msg.className = "msg sucesso";
+    msg.innerHTML = "Cadastro realizado! Aguarde liberação.";
+
+  } catch (error) {
+    console.error(error);
+    msg.innerHTML = "Erro ao cadastrar.";
+  }
 }
 </script>
 
